@@ -2054,10 +2054,15 @@ func handleHotKey() {
     }, 1, &pressed, nil, nil)
 }
 
-/// Makes `key` with `modifiers` the hotkey, in place of the one before.
-func registerHotKey(key: Int, modifiers: Int) {
+/// Frees the hotkey, if one is registered.
+func unregisterHotKey() {
     if let registeredHotKey { UnregisterEventHotKey(registeredHotKey) }
     registeredHotKey = nil
+}
+
+/// Makes `key` with `modifiers` the hotkey, in place of the one before.
+func registerHotKey(key: Int, modifiers: Int) {
+    unregisterHotKey()
     RegisterEventHotKey(UInt32(key), UInt32(modifiers), EventHotKeyID(signature: 0x434C_4950, id: 1),
                         GetApplicationEventTarget(), 0, &registeredHotKey)
 }
@@ -2079,6 +2084,12 @@ let appURL: URL = {
 func setting(_ variable: String) -> String {
     let prefs = appURL.deletingLastPathComponent().appendingPathComponent("prefs.plist")
     return NSDictionary(contentsOf: prefs)?[variable] as? String ?? ""
+}
+
+/// Whether the workflow is turned off in Alfred, which saves that as `disabled` in the workflow's info.plist.
+func workflowDisabled() -> Bool {
+    let info = appURL.deletingLastPathComponent().appendingPathComponent("info.plist")
+    return NSDictionary(contentsOf: info)?["disabled"] as? Bool ?? false
 }
 
 let modifierNames = ["⌃": controlKey, "^": controlKey, "ctrl": controlKey, "control": controlKey,
@@ -2188,10 +2199,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Registers the hotkey from Configure Workflow when it has changed. An empty or unreadable one is ⌃⌘V.
+    /// While the workflow is turned off in Alfred there's no hotkey and the window stays closed.
     func updateHotKey() {
-        let text = setting("hotkey")
+        let text = workflowDisabled() ? nil : setting("hotkey")
         guard text != hotKeyText else { return }
         hotKeyText = text
+        guard let text else {
+            unregisterHotKey()
+            if controller?.panel.isVisible == true { controller?.hide() }
+            return
+        }
         let hotKey = parseHotKey(text) ?? (kVK_ANSI_V, controlKey | cmdKey)
         registerHotKey(key: hotKey.key, modifiers: hotKey.modifiers)
     }
