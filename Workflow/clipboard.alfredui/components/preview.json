@@ -1,0 +1,66 @@
+{
+  "constraints": { "region": "centre" },
+  "type": "view",
+  "layout": "border",
+  "padding": 12,
+  "spacing": 12,
+  "components": [
+    {
+      "constraints": { "region": "centre" },
+      "type": "view",
+      "layout": "stack",
+      "cornerradius": 8,
+      "background": { "light": "#00000008", "dark": "#ffffff08" },
+      "components": [
+        {
+          "id": "previewText",
+          "type": "textarea",
+          "editable": false,
+          "disableallsubstitutions": true,
+          "background": null,
+          "bordered": false,
+          "textinsets": { "horizontal": 10, "vertical": 10 }
+        },
+        {
+          "id": "previewCode",
+          "type": "textarea",
+          "editable": false,
+          "disableallsubstitutions": true,
+          "background": null,
+          "bordered": false,
+          "font": { "monospaced": true },
+          "textinsets": { "horizontal": 10, "vertical": 10 }
+        },
+        {
+          "constraints": { "insets": { "top": 10, "left": 10, "bottom": 10, "right": 10 } },
+          "id": "previewImage",
+          "type": "imageview",
+          "resize": "fit"
+        },
+        {
+          "constraints": { "position": "centre", "size": 140 },
+          "id": "previewSwatch",
+          "type": "view",
+          "layout": "stack",
+          "cornerradius": 20
+        }
+      ]
+    },
+    {
+      "constraints": { "region": "bottom" },
+      "type": "view",
+      "layout": "form",
+      "spacing": 6,
+      "components": [
+        { "type": "label", "text": "Source", "colour": "secondaryLabelColor" },
+        { "id": "infoApp", "type": "label", "linebreak": "truncatetail" },
+        { "type": "label", "text": "Content type", "colour": "secondaryLabelColor" },
+        { "id": "infoType", "type": "label" },
+        { "type": "label", "text": "Copied", "colour": "secondaryLabelColor" },
+        { "id": "infoCopied", "type": "label" },
+        { "type": "label", "text": "Details", "colour": "secondaryLabelColor" },
+        { "id": "infoDetails", "type": "label", "linebreak": "truncatetail", "selectable": true }
+      ]
+    }
+  ]
+}

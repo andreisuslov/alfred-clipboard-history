@@ -1,0 +1,114 @@
+{
+  "constraints": { "region": "left", "size": { "width": 340 } },
+  "id": "clipList",
+  "type": "dataview",
+  "placeholder": "No items",
+  "padding": 8,
+  "events": [{
+    "triggers": "changed",
+    "action": {
+      "type": "json",
+      "variables": {
+        "selected_text": "{value:self.selected.text}",
+        "selected_code": "{value:self.selected.code}",
+        "selected_image": "{value:self.selected.image}",
+        "selected_swatch": "{value:self.selected.swatch}",
+        "selected_app": "{value:self.selected.app}",
+        "selected_type": "{value:self.selected.type}",
+        "selected_copied": "{value:self.selected.copied}",
+        "selected_details": "{value:self.selected.details}"
+      },
+      "src": { "update": { "ids": {
+        "previewText": { "text": "{var:selected_text}" },
+        "previewCode": { "text": "{var:selected_code}" },
+        "previewImage": { "image": { "type": "file", "src": "{var:selected_image}" } },
+        "previewSwatch": { "background": "{var:selected_swatch}" },
+        "infoApp": { "text": "{var:selected_app}" },
+        "infoType": { "text": "{var:selected_type}" },
+        "infoCopied": { "text": "{var:selected_copied}" },
+        "infoDetails": { "text": "{var:selected_details}" }
+      } } }
+    }
+  }],
+  "data": {
+    "filter": { "type": "basic", "args": "match", "match": "{value:searchField.text}", "matchmode": "wordmatchanyorder" },
+    "src": []
+  },
+  "cell": {
+    "height": 36,
+    "init": {
+      "cellRoot.background": null,
+      "cellTitle.colour": "labelColor",
+      "cellDate.colour": "secondaryLabelColor",
+      "cellPin.contenttintcolour": "secondaryLabelColor"
+    },
+    "selected": {
+      "cellRoot.background": "alfredSelectedResultBackgroundColor",
+      "cellTitle.colour": "alfredSelectedResultTextColor",
+      "cellDate.colour": "alfredSelectedResultTextColor",
+      "cellPin.contenttintcolour": "alfredSelectedResultTextColor"
+    },
+    "root": {
+      "id": "cellRoot",
+      "type": "view",
+      "layout": "border",
+      "padding": 8,
+      "spacing": 8,
+      "cornerradius": 6,
+      "events": [{
+        "triggers": "doubleclicked",
+        "action": { "type": "script", "src": "scripts/use", "args": ["paste", "{data:uid}", "{var:view}"] }
+      }],
+      "components": [
+        {
+          "constraints": { "region": "left", "size": 18 },
+          "type": "view",
+          "layout": "stack",
+          "components": [
+            {
+              "constraints": { "size": 18 },
+              "id": "cellIcon",
+              "type": "imageview",
+              "image": { "type": "fileicon", "src": "/System/Library/CoreServices/Finder.app" }
+            },
+            {
+              "constraints": { "size": 14, "position": "centre" },
+              "id": "cellSwatch",
+              "type": "view",
+              "layout": "stack",
+              "cornerradius": 4,
+              "hidden": true
+            }
+          ]
+        },
+        {
+          "constraints": { "region": "centre" },
+          "id": "cellTitle",
+          "type": "label",
+          "linebreak": "truncatetail"
+        },
+        {
+          "constraints": { "region": "right" },
+          "type": "view",
+          "layout": "inline",
+          "direction": "horizontal",
+          "spacing": 4,
+          "components": [
+            {
+              "id": "cellPin",
+              "type": "imageview",
+              "image": { "type": "symbol", "src": "pin.fill" },
+              "font": { "size": 10 },
+              "hidden": true
+            },
+            {
+              "id": "cellDate",
+              "type": "label",
+              "font": { "size": "small" }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

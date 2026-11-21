@@ -1,0 +1,17 @@
+#!/usr/bin/osascript -l JavaScript
+
+eval?.($.NSString.stringWithContentsOfFileEncodingError("./scripts/common", $.NSUTF8StringEncoding, undefined).js)
+
+// Pins or unpins a clip, keeping it selected. Arguments: the clip's uid and the view.
+function run(argv) {
+  const [uid, view] = argv
+  const saved = loadSaved()
+  const clip = uid && findClip(uid, view, saved)
+  if (!clip) return JSON.stringify({ sound: { src: "Funk" } })
+  const key = clipKey(clip)
+  const index = saved.pinned.findIndex(pin => clipKey(pin) === key)
+  if (index >= 0) saved.pinned.splice(index, 1)
+  else saved.pinned.unshift(keep(clip))
+  saveSaved(saved)
+  return JSON.stringify(listUpdate(view, saved, { select: key }))
+}

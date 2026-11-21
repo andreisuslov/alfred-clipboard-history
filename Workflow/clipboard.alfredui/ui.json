@@ -1,0 +1,76 @@
+{
+  "bundleid": "com.andreisuslov.alfred-clipboard-history",
+  "log": { "level": "info", "internal": true },
+  "iconpath": "../icon.png",
+  "variablesconfig": {
+    "view": { "default": "all" }
+  },
+  "window": {
+    "size": { "width": 860, "height": 540 },
+    "root": {
+      "type": "view",
+      "layout": "border",
+      "events": [{
+        "triggers": "launched",
+        "action": { "type": "script", "src": "scripts/load", "args": ["all", "picker"] }
+      }],
+      "shortcuts": [
+        { "shortcut": "↑", "action": { "type": "function", "src": "clipList", "args": "selectprevious" } },
+        { "shortcut": "↓", "action": { "type": "function", "src": "clipList", "args": "selectnext" } },
+        { "shortcut": "⌘↩", "action": { "type": "script", "src": "scripts/use", "args": ["copy", "{value:clipList.selected.uid}", "{var:view}"] } },
+        { "shortcut": "⌘⇧P", "action": { "type": "script", "src": "scripts/pin", "args": ["{value:clipList.selected.uid}", "{var:view}"] } },
+        { "shortcut": "⌘K", "action": { "type": "script", "src": "scripts/menu", "args": ["{value:clipList.selected.uid}", "{var:view}"] } },
+        { "shortcut": "⌘⌫", "action": { "type": "script", "src": "scripts/board", "args": ["remove", "{value:clipList.selected.uid}", "{var:view}"] } },
+        { "shortcut": "⌘1", "action": [
+          { "type": "json", "src": { "functions": { "ids": { "clipList": ["selectfirst"] } } } },
+          { "type": "script", "src": "scripts/use", "args": ["paste", "{value:clipList.selected.uid}", "{var:view}"] }
+        ] },
+        { "shortcut": "⌘2", "action": [
+          { "type": "json", "src": { "functions": { "ids": { "clipList": ["selectfirst", "selectnext"] } } } },
+          { "type": "script", "src": "scripts/use", "args": ["paste", "{value:clipList.selected.uid}", "{var:view}"] }
+        ] },
+        { "shortcut": "⌘3", "action": [
+          { "type": "json", "src": { "functions": { "ids": { "clipList": ["selectfirst", "selectnext", "selectnext"] } } } },
+          { "type": "script", "src": "scripts/use", "args": ["paste", "{value:clipList.selected.uid}", "{var:view}"] }
+        ] },
+        { "shortcut": "⌘4", "action": [
+          { "type": "json", "src": { "functions": { "ids": { "clipList": ["selectfirst", "selectnext", "selectnext", "selectnext"] } } } },
+          { "type": "script", "src": "scripts/use", "args": ["paste", "{value:clipList.selected.uid}", "{var:view}"] }
+        ] },
+        { "shortcut": "⌘5", "action": [
+          { "type": "json", "src": { "functions": { "ids": { "clipList": ["selectfirst", "selectnext", "selectnext", "selectnext", "selectnext"] } } } },
+          { "type": "script", "src": "scripts/use", "args": ["paste", "{value:clipList.selected.uid}", "{var:view}"] }
+        ] },
+        { "shortcut": "⌘6", "action": [
+          { "type": "json", "src": { "functions": { "ids": { "clipList": ["selectfirst", "selectnext", "selectnext", "selectnext", "selectnext", "selectnext"] } } } },
+          { "type": "script", "src": "scripts/use", "args": ["paste", "{value:clipList.selected.uid}", "{var:view}"] }
+        ] },
+        { "shortcut": "⌘7", "action": [
+          { "type": "json", "src": { "functions": { "ids": { "clipList": ["selectfirst", "selectnext", "selectnext", "selectnext", "selectnext", "selectnext", "selectnext"] } } } },
+          { "type": "script", "src": "scripts/use", "args": ["paste", "{value:clipList.selected.uid}", "{var:view}"] }
+        ] },
+        { "shortcut": "⌘8", "action": [
+          { "type": "json", "src": { "functions": { "ids": { "clipList": ["selectfirst", "selectnext", "selectnext", "selectnext", "selectnext", "selectnext", "selectnext", "selectnext"] } } } },
+          { "type": "script", "src": "scripts/use", "args": ["paste", "{value:clipList.selected.uid}", "{var:view}"] }
+        ] },
+        { "shortcut": "⌘9", "action": [
+          { "type": "json", "src": { "functions": { "ids": { "clipList": ["selectfirst", "selectnext", "selectnext", "selectnext", "selectnext", "selectnext", "selectnext", "selectnext", "selectnext"] } } } },
+          { "type": "script", "src": "scripts/use", "args": ["paste", "{value:clipList.selected.uid}", "{var:view}"] }
+        ] }
+      ],
+      "components": [
+        "{file:components/search.json}",
+        {
+          "constraints": { "region": "centre" },
+          "type": "view",
+          "layout": "border",
+          "components": [
+            "{file:components/list.json}",
+            "{file:components/preview.json}"
+          ]
+        },
+        "{file:components/footer.json}"
+      ]
+    }
+  }
+}

@@ -1,0 +1,120 @@
+#!/usr/bin/osascript -l JavaScript
+
+eval?.($.NSString.stringWithContentsOfFileEncodingError("./scripts/common", $.NSUTF8StringEncoding, undefined).js)
+
+function script(name, ...args) {
+  return { type: "script", src: `scripts/${name}`, args }
+}
+
+// A sheet with a message, an optional text field and two buttons; `action` runs on the second.
+function sheet({ title, message, field, button, action }) {
+  const components = [{ type: "label", text: title, font: { size: 15, weight: "semibold" } }]
+  if (message) components.push({ type: "label", text: message, colour: "secondaryLabelColor" })
+  if (field !== undefined) {
+    components.push({
+      constraints: { size: { width: 280 } },
+      id: "sheetField",
+      type: "textfield",
+      text: field,
+      placeholder: "Name",
+      focus: true
+    })
+  }
+  components.push({
+    constraints: { position: "right" },
+    type: "view",
+    layout: "inline",
+    direction: "horizontal",
+    spacing: 8,
+    components: [
+      {
+        type: "button",
+        text: "Cancel",
+        shortcut: "⎋",
+        events: [{ triggers: "actioned", action: { type: "json", src: { sheet: { close: "boardSheet" } } } }]
+      },
+      {
+        type: "button",
+        text: button,
+        shortcut: "↩",
+        events: [{ triggers: "actioned", action: [action, { type: "json", src: { sheet: { close: "boardSheet" } } }] }]
+      }
+    ]
+  })
+  return {
+    type: "json",
+    src: { sheet: { id: "boardSheet", closeonescape: false, root: {
+      type: "view", layout: "inline", direction: "vertical", padding: 20, spacing: 12, components
+    } } }
+  }
+}
+
+// The actions for the selected clip (⌘K). Arguments: the clip's uid and the view.
+function run(argv) {
+  const [uid, view] = argv
+  const saved = loadSaved()
+  const clip = uid && findClip(uid, view, saved)
+  const onBoard = view.startsWith("board:")
+  const boardName = view.slice(6)
+  const menu = []
+
+  if (clip) {
+    const key = clipKey(clip)
+    const pinned = saved.pinned.some(pin => clipKey(pin) === key)
+    menu.push(
+      { text: "Paste  ↩", action: script("use", "paste", uid, view) },
+      { text: "Copy  ⌘↩", action: script("use", "copy", uid, view) },
+      { text: pinned ? "Unpin  ⌘⇧P" : "Pin  ⌘⇧P", action: script("pin", uid, view) },
+      { type: "separator" },
+      {
+        text: "Add to Pinboard",
+        submenu: [
+          ...saved.boards.map(board => ({
+            text: board.name,
+            state: board.items.some(item => clipKey(item) === key) ? "on" : "off",
+            action: script("board", "add", board.name, uid, view)
+          })),
+          ...(saved.boards.length > 0 ? [{ type: "separator" }] : []),
+          {
+            text: "New Pinboard…",
+            action: sheet({
+              title: "New Pinboard",
+              message: "The selected item is added to it.",
+              field: "",
+              button: "Create",
+              action: script("board", "add", "{value:sheetField.text}", uid, view)
+            })
+          }
+        ]
+      }
+    )
+    if (onBoard) menu.push({ text: "Remove from Pinboard  ⌘⌫", action: script("board", "remove", uid, view) })
+  }
+
+  if (onBoard) {
+    if (menu.length > 0) menu.push({ type: "separator" })
+    menu.push(
+      {
+        text: "Rename Pinboard…",
+        action: sheet({
+          title: "Rename Pinboard",
+          field: boardName,
+          button: "Rename",
+          action: script("board", "rename", boardName, "{value:sheetField.text}")
+        })
+      },
+      {
+        text: "Delete Pinboard…",
+        action: sheet({
+          title: `Delete the pinboard “${boardName}”?`,
+          message: "Its items stay in Alfred's clipboard history.",
+          button: "Delete",
+          action: script("board", "delete", boardName)
+        })
+      }
+    )
+  }
+
+  if (menu.length === 0) return JSON.stringify({ sound: { src: "Funk" } })
+  return JSON.stringify({ popupmenu: { src: "clipList", menu } })
+}
