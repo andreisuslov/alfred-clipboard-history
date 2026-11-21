@@ -1,0 +1,522 @@
+#!/usr/bin/osascript -l JavaScript
+
+// Shared by the other scripts, which load it with eval. Alfred UI runs them from the .alfredui folder.
+//
+// This is the window the workflow shows when Configure Workflow's Window setting is Alfred UI; otherwise
+// ClipHistory.app shows its own. The history is Alfred's own clipboard database, read only, so Alfred keeps
+// recording as usual. Pins and pinboards are kept in saved.json in the workflow's data folder, shared with
+// ClipHistory.app, with copies of their images and file lists in data/.
+
+ObjC.import("AppKit")
+
+function envVar(name) {
+  return $.NSProcessInfo.processInfo.environment.objectForKey(name).js
+}
+
+const home = $.NSHomeDirectory().js
+const historyPath = `${home}/Library/Application Support/Alfred/Databases/clipboard.alfdb`
+const alfredData = `${home}/Library/Application Support/Alfred/Databases/clipboard.alfdb.data`
+const dataDir = envVar("alfred_workflow_data") || `${home}/Library/Application Support/Alfred/Workflow Data/com.andreisuslov.alfred-clipboard-history`
+const savedFile = `${dataDir}/saved.json`
+const recentFile = `${dataDir}/recent.json`
+const savedData = `${dataDir}/data`
+
+// Alfred stores seconds since 2001-01-01, Foundation's reference date.
+const referenceDate = 978307200
+
+const fileManager = $.NSFileManager.defaultManager
+
+function exists(path) {
+  return fileManager.fileExistsAtPath(path)
+}
+
+function readFile(path) {
+  return $.NSString.stringWithContentsOfFileEncodingError(path, $.NSUTF8StringEncoding, undefined).js
+}
+
+function writeFile(path, text) {
+  $(text).writeToFileAtomicallyEncodingError(path, true, $.NSUTF8StringEncoding, undefined)
+}
+
+function makeDir(path) {
+  fileManager.createDirectoryAtPathWithIntermediateDirectoriesAttributesError(path, true, $(), undefined)
+}
+
+function runTask(executable, args) {
+  const task = $.NSTask.alloc.init
+  const stdout = $.NSPipe.pipe
+  task.executableURL = $.NSURL.fileURLWithPath(executable)
+  task.arguments = args
+  task.standardOutput = stdout
+  task.standardError = $.NSFileHandle.fileHandleWithNullDevice
+  task.launchAndReturnError(false)
+  const data = stdout.fileHandleForReading.readDataToEndOfFileAndReturnError(false)
+  task.waitUntilExit
+  return $.NSString.alloc.initWithDataEncoding(data, $.NSUTF8StringEncoding).js
+}
+
+function query(sql) {
+  if (!exists(historyPath)) return []
+  const json = runTask("/usr/bin/sqlite3", ["-json", "-readonly", historyPath, sql]).trim()
+  return json ? JSON.parse(json) : []
+}
+
+// MARK: - Clips
+
+const kinds = { 0: "text", 1: "image", 2: "files" }
+
+// A clip as ClipHistory.app saves it: kind, item, date, app, appPath, dataHash.
+// `folder` is where its image or file list is: Alfred's, or the copy a pin or pinboard keeps.
+function historyClips(where = "") {
+  return query(`select rowid, item, ts, app, apppath, dataType, dataHash from clipboard ${where} order by ts desc`)
+    .map(row => ({
+      rowid: row.rowid,
+      kind: kinds[row.dataType] || "text",
+      item: row.item ?? "",
+      date: Number(row.ts),
+      app: row.app ?? "",
+      appPath: row.apppath ?? "",
+      dataHash: row.dataHash ?? "",
+      folder: alfredData
+    }))
+}
+
+// The same thing copied again: Alfred keeps one entry per text, image or file list.
+function clipKey(clip) {
+  return clip.kind === "text" ? `text:${clip.item}` : `${clip.kind}:${clip.dataHash}`
+}
+
+// A short, stable id for a clip, as dataview uids.
+function hash(text) {
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0).toString(36)
+}
+
+function dataPath(clip) {
+  return `${clip.folder}/${clip.dataHash}`
+}
+
+function listedFiles(clip) {
+  if (clip.kind !== "files") return []
+  const paths = $.NSArray.arrayWithContentsOfFile(dataPath(clip))
+  return paths.isNil() ? [] : paths.js.map(path => path.js)
+}
+
+const imageExtensions = new Set(["png", "jpg", "jpeg", "gif", "tiff", "tif", "heic", "webp", "bmp"])
+
+function isImageFile(path) {
+  return imageExtensions.has(path.split(".").pop().toLowerCase())
+}
+
+function fileName(path) {
+  return path.split("/").pop()
+}
+
+// Alfred labels images "Image: 608x917 (2.1 MB)".
+function imageInfo(item) {
+  const parts = item.replace("Image: ", "").split(" (")
+  return { dimensions: parts[0].replace("x", "×"), size: (parts[1] || "").replace(")", "") }
+}
+
+// MARK: - Kinds of text
+
+// The color a clipping names when it is only a color value: #RGB(A), #RRGGBB(AA), rgb()/rgba(), hsl()/hsla().
+// Returned as { hex, rgb }, the values the Information panel shows.
+function parseColor(item) {
+  if (item.length > 64) return null
+  const text = item.trim().toLowerCase()
+  let hex = text.startsWith("#") ? text.slice(1) : text
+  // Without "#", only six or eight hex digits mixing letters and numbers: "facade" is a word, "531348" a code.
+  if (!text.startsWith("#") && !([6, 8].includes(hex.length) && /\d/.test(hex) && /[a-f]/.test(hex))) hex = ""
+  // "#123" is more often an issue number than a color; "#000" and "#fff" are colors.
+  if (hex.length <= 4 && /^\d+$/.test(hex) && new Set(hex).size > 1) hex = ""
+  if ([3, 4, 6, 8].includes(hex.length) && /^[0-9a-f]+$/.test(hex)) {
+    if (hex.length <= 4) hex = [...hex].map(c => c + c).join("")
+    const [r, g, b] = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16))
+    const alpha = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1
+    return colorValues(r, g, b, alpha)
+  }
+  const match = text.match(/^(rgba?|hsla?)\(\s*([\d.]+%?)\s*[,\s]\s*([\d.]+%?)\s*[,\s]\s*([\d.]+%?)\s*(?:[,/]\s*([\d.]+%?)\s*)?\)$/)
+  if (!match) return null
+  // A component as 0...1: "50%" is a percentage, a bare number is out of `scale`.
+  const unit = (value, scale) => Math.min(Math.max(value.endsWith("%") ? parseFloat(value) / 100 : parseFloat(value) / scale, 0), 1)
+  const alpha = match[5] ? unit(match[5], 1) : 1
+  if (match[1].startsWith("rgb")) {
+    return colorValues(...[match[2], match[3], match[4]].map(v => Math.round(unit(v, 255) * 255)), alpha)
+  }
+  const hue = (parseFloat(match[2]) % 360) / 360, s = unit(match[3], 100), l = unit(match[4], 100)
+  const channel = n => {
+    const k = (n + hue * 12) % 12
+    return Math.round((l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k - 3, 9 - k, 1))) * 255)
+  }
+  return colorValues(channel(0), channel(8), channel(4), alpha)
+}
+
+function colorValues(r, g, b, alpha) {
+  const hex = [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("").toUpperCase()
+  if (alpha < 1) {
+    const a = Math.round(alpha * 255).toString(16).padStart(2, "0").toUpperCase()
+    return { hex: `#${hex}${a}`, rgb: `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(2)})` }
+  }
+  return { hex: `#${hex}`, rgb: `rgb(${r}, ${g}, ${b})` }
+}
+
+function isLink(item) {
+  if (item.length >= 4096) return false
+  return /^https?:\/\/\S+$/.test(item.trim())
+}
+
+const codeStarts = ["import ", "def ", "class ", "func ", "function ", "fn ", "const ", "let ", "var ",
+  "return ", "if (", "for (", "while (", "} else", "public ", "private ", "static ", "struct ",
+  "enum ", "#include", "#!/", "package ", "select ", "insert into ", "create table", "$ ",
+  "sudo ", "git ", "brew ", "npm ", "npx ", "yarn ", "pip ", "cd ", "curl ", "docker ",
+  "kubectl ", "ssh ", "export ", "echo ", "python", "node ", "</", "<div", "<?xml"]
+
+// A command with a flag within its first few words: "xattr -d …", "git log --oneline".
+const commandWithFlag = /^[a-z][\w.-]*( +[^\s-]\S*){0,3} +-{1,2}[A-Za-z]/
+
+// A guess at whether a clipping is code or a shell command rather than prose: code keywords,
+// lines ending in ; { or }, commands with flags, indentation and a high density of symbols.
+function looksLikeCode(item) {
+  const rawLines = item.slice(0, 4000).split(/\r?\n/)
+  const lines = rawLines.map(line => line.trim()).filter(line => line.length > 0)
+  if (lines.length === 0) return false
+  let score = 0
+  for (const line of lines) {
+    const lower = line.toLowerCase()
+    if (codeStarts.some(start => lower.startsWith(start))) score += 2
+    if (lower.startsWith("from ") && lower.includes(" import ")) score += 2  // Python, not "from - …"
+    if (";{}".includes(line[line.length - 1])) score += 2
+    if (line.length < 300 && commandWithFlag.test(line)) score += 2
+    // Markdown tables start with "|", so their pipes don't count as shell pipes.
+    if (!line.startsWith("|") && [" && ", " | ", "=>", "->", "::", "==", "!="].some(s => line.includes(s))) score += 1
+  }
+  score += rawLines.filter(line => line.startsWith("    ") || line.startsWith("\t")).length
+  // Only for a few lines or more: "$3,485.74" or a list of email addresses is dense with symbols too.
+  const sample = item.slice(0, 2000)
+  const symbols = (sample.match(/[{}[\]();=<>$|&\\_]/g) || []).length
+  if (lines.length >= 3 && symbols / sample.length > 0.06) score += 2
+  return score >= (lines.length === 1 ? 2 : Math.max(3, Math.floor(lines.length / 2)))
+}
+
+// MARK: - Dates
+
+function jsDate(clip) {
+  return new Date((clip.date + referenceDate) * 1000)
+}
+
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+function daysAgo(date) {
+  return Math.round((today - startOfDay(date)) / 86400000)
+}
+
+// Made once: formatting thousands of dates with toLocaleString is slow.
+const formats = {
+  time: new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" }),
+  weekday: new Intl.DateTimeFormat([], { weekday: "long" }),
+  day: new Intl.DateTimeFormat([], { month: "short", day: "numeric" }),
+  dayAndYear: new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" }),
+  number: new Intl.NumberFormat()
+}
+const today = startOfDay(new Date())
+
+function timeText(date) {
+  return formats.time.format(date)
+}
+
+// When it was copied, short enough for a row: "14:32", "Yesterday", "Monday", "Nov 12", "Nov 12, 2025".
+function rowDate(date) {
+  const days = daysAgo(date)
+  if (days === 0) return timeText(date)
+  if (days === 1) return "Yesterday"
+  if (days < 7) return formats.weekday.format(date)
+  if (date.getFullYear() === today.getFullYear()) return formats.day.format(date)
+  return formats.dayAndYear.format(date)
+}
+
+function copiedLabel(date) {
+  const days = daysAgo(date)
+  if (days === 0) return `Today at ${timeText(date)}`
+  if (days === 1) return `Yesterday at ${timeText(date)}`
+  return `${formats.dayAndYear.format(date)} at ${timeText(date)}`
+}
+
+// MARK: - Pins and pinboards
+
+// Pins show above the history; pinboards are lists you name and fill. Both hold copies,
+// images and file lists included, so they stay after Alfred deletes the originals.
+function loadSaved() {
+  if (!exists(savedFile)) return { pinned: [], boards: [] }
+  try {
+    const saved = JSON.parse(readFile(savedFile))
+    const withFolder = clip => Object.assign(clip, { folder: savedData })
+    saved.pinned = (saved.pinned || []).map(withFolder)
+    saved.boards = (saved.boards || []).map(board => ({ name: board.name, items: (board.items || []).map(withFolder) }))
+    return saved
+  } catch (error) {
+    // Not written over: the file is set aside, rather than emptied by the next save.
+    fileManager.moveItemAtPathToPathError(savedFile, `${savedFile}.unreadable`, undefined)
+    return { pinned: [], boards: [] }
+  }
+}
+
+// A clip as saved.json keeps it.
+function plain(clip) {
+  return { kind: clip.kind, item: clip.item, date: clip.date, app: clip.app, appPath: clip.appPath, dataHash: clip.dataHash }
+}
+
+// Writes the list, and drops the copies of images and file lists that nothing holds any more.
+function saveSaved(saved) {
+  makeDir(savedData)
+  writeFile(savedFile, JSON.stringify({
+    pinned: saved.pinned.map(plain),
+    boards: saved.boards.map(board => ({ name: board.name, items: board.items.map(plain) }))
+  }))
+  const held = new Set(saved.pinned.concat(...saved.boards.map(board => board.items)).map(clip => clip.dataHash))
+  const files = fileManager.contentsOfDirectoryAtPathError(savedData, undefined)
+  if (!files.isNil()) files.js.map(name => name.js).filter(name => !held.has(name))
+    .forEach(name => fileManager.removeItemAtPathError(`${savedData}/${name}`, undefined))
+}
+
+// The clip with its own copy of its image or file list, which Alfred's cleanup doesn't touch.
+function keep(clip) {
+  if (clip.folder === savedData) return clip
+  if (clip.kind !== "text") {
+    makeDir(savedData)
+    fileManager.copyItemAtPathToPathError(dataPath(clip), `${savedData}/${clip.dataHash}`, undefined)
+  }
+  return Object.assign({}, clip, { folder: savedData, rowid: undefined })
+}
+
+// MARK: - Recent
+
+// Alfred 6 doesn't write what's copied to its database while it runs, so the history alone is stale:
+// new copies are missing and a clip copied again keeps its old date. recent.json keeps the clips
+// pasted from the window and the text on the clipboard each time the window opens, newest first,
+// each dated when it was last used, and the pasteboard's changeCount when it was last looked at.
+// ClipHistory.app keeps the same file, adding text as it's copied while the app runs.
+function loadRecent() {
+  try {
+    const recent = JSON.parse(readFile(recentFile))
+    return { changeCount: recent.changeCount, clips: recent.clips || [] }
+  } catch (error) {
+    return { changeCount: -1, clips: [] }
+  }
+}
+
+function saveRecent(recent) {
+  makeDir(dataDir)
+  const clips = recent.clips.slice(0, 200).map(clip => Object.assign(plain(clip), { folder: clip.folder }))
+  writeFile(recentFile, JSON.stringify({ changeCount: recent.changeCount, clips }))
+}
+
+function now() {
+  return Date.now() / 1000 - referenceDate
+}
+
+function addRecent(recent, clip) {
+  const key = clipKey(clip)
+  recent.clips = [Object.assign({}, clip, { date: now() })].concat(recent.clips.filter(other => clipKey(other) !== key))
+}
+
+// Password managers mark what they copy so clipboard histories leave it out.
+const privateTypes = ["org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType", "com.agilebits.onepassword"]
+
+// Adds the text on the clipboard if it changed since the last look: what was copied since Alfred last saved.
+// Images and files copied elsewhere are left to Alfred, since there's no copy of them to show.
+function noteClipboard(recent) {
+  const pasteboard = $.NSPasteboard.generalPasteboard
+  const changeCount = Number(pasteboard.changeCount)
+  if (changeCount === recent.changeCount) return
+  recent.changeCount = changeCount
+  const types = pasteboard.types.isNil() ? [] : pasteboard.types.js.map(type => type.js)
+  const first = pasteboard.availableTypeFromArray($([$.NSPasteboardTypeFileURL, $.NSPasteboardTypeTIFF, $.NSPasteboardTypePNG, $.NSPasteboardTypeString]))
+  const text = pasteboard.stringForType($.NSPasteboardTypeString)
+  if (!privateTypes.some(type => types.includes(type)) && !first.isNil() && first.js === $.NSPasteboardTypeString.js && !text.isNil() && text.js.trim()) {
+    addRecent(recent, { kind: "text", item: text.js, app: "", appPath: "", dataHash: "", folder: alfredData })
+  }
+  saveRecent(recent)
+}
+
+// Records a clip pasted or copied from the window, after it's on the pasteboard.
+function notePasted(clip) {
+  const recent = loadRecent()
+  addRecent(recent, clip)
+  recent.changeCount = Number($.NSPasteboard.generalPasteboard.changeCount)
+  saveRecent(recent)
+}
+
+// Alfred's history with the recent clips in it, newest first: one Alfred has gets the later of the two dates,
+// and one it hasn't got yet has a uid "r…".
+function history() {
+  const recent = loadRecent()
+  noteClipboard(recent)
+  const used = new Map(recent.clips.map(clip => [clipKey(clip), clip]))
+  const clips = historyClips().map(clip => {
+    const key = clipKey(clip)
+    if (used.has(key)) clip.date = Math.max(clip.date, used.get(key).date)
+    used.delete(key)
+    return Object.assign(clip, { uid: `h${clip.rowid}` })
+  })
+  const newer = [...used.values()].map(clip => Object.assign(clip, { uid: `r${hash(clipKey(clip))}` }))
+  return clips.concat(newer).sort((a, b) => b.date - a.date)
+}
+
+// MARK: - Views
+
+// What the type menu shows: "all", "pinned", a category, or "board:<name>".
+const categoryNames = { text: "Text", link: "Links", code: "Code", media: "Media", color: "Colors" }
+
+function category(clip) {
+  if (clip.kind !== "text") return "media"
+  if (parseColor(clip.item)) return "color"
+  if (isLink(clip.item)) return "link"
+  if (looksLikeCode(clip.item)) return "code"
+  return "text"
+}
+
+// Every clip in a view with its dataview uid: "p…" pinned, "b…" on a pinboard, "h<rowid>" in Alfred's history,
+// "r…" copied since Alfred last saved its history.
+function clipsInView(view, saved) {
+  if (view.startsWith("board:")) {
+    const board = saved.boards.find(board => board.name === view.slice(6))
+    return board ? board.items.map(clip => Object.assign(clip, { uid: `b${hash(clipKey(clip))}` })) : []
+  }
+  const pinned = saved.pinned.map(clip => Object.assign(clip, { uid: `p${hash(clipKey(clip))}`, pinned: true }))
+  if (view === "pinned") return pinned
+  const pinnedKeys = new Set(pinned.map(clipKey))
+  const all = pinned.concat(history().filter(clip => !pinnedKeys.has(clipKey(clip))))
+  return view === "all" ? all : all.filter(clip => category(clip) === view)
+}
+
+function findClip(uid, view, saved) {
+  if (uid.startsWith("h")) {
+    const clip = historyClips(`where rowid = ${parseInt(uid.slice(1), 10)}`)[0]
+    return clip && Object.assign(clip, { uid })
+  }
+  if (uid.startsWith("r")) return history().find(clip => clip.uid === uid)
+  return clipsInView(uid.startsWith("p") ? "pinned" : view, saved).find(clip => clip.uid === uid)
+}
+
+// MARK: - Rows
+
+// A dataview row: the cell's parts (as "id.property") and, without dots, what the preview shows.
+function row(clip) {
+  const date = jsDate(clip)
+  const kind = category(clip)
+  const color = kind === "color" ? parseColor(clip.item) : null
+  const files = listedFiles(clip)
+  let title, details, text = "", code = "", image = ""
+  switch (clip.kind) {
+    case "image": {
+      const info = imageInfo(clip.item)
+      title = `Image (${info.dimensions})`
+      details = [info.dimensions, info.size].filter(Boolean).join(" · ")
+      image = dataPath(clip)
+      break
+    }
+    case "files": {
+      const first = files.length > 0 ? fileName(files[0]) : clip.item.replace(/^Files?: /, "")
+      title = files.length > 1 ? `${first} and ${files.length - 1} more` : first
+      details = files.length === 1 ? "1 file" : `${files.length} files`
+      if (files.length > 0 && isImageFile(files[0]) && exists(files[0])) image = files[0]
+      else text = files.map(path => path.replace(home, "~")).join("\n")
+      break
+    }
+    default: {
+      const line = clip.item.split(/\r?\n/, 20).find(line => line.trim().length > 0) || ""
+      title = line.trim().slice(0, 300)
+      const words = clip.item.split(/\s+/).filter(Boolean).length
+      details = color ? `${color.hex} · ${color.rgb}`
+        : `${formats.number.format(clip.item.length)} characters · ${formats.number.format(words)} ${words === 1 ? "word" : "words"}`
+      const preview = clip.item.length > 2000 ? `${clip.item.slice(0, 2000)}…` : clip.item
+      if (kind === "code") code = preview
+      else if (!color) text = preview
+    }
+  }
+  const pinned = Boolean(clip.pinned)
+  return {
+    uid: clip.uid,
+    match: `${clip.kind === "text" ? clip.item.slice(0, 1000) : title} ${clip.app}`,
+    "cellIcon.image.src": clip.appPath || "/System/Library/CoreServices/Finder.app",
+    "cellIcon.hidden": Boolean(color),
+    "cellSwatch.hidden": !color,
+    "cellSwatch.background": color ? color.hex : "#00000000",
+    "cellTitle.text": title,
+    "cellDate.text": rowDate(date),
+    "cellPin.hidden": !pinned,
+    text,
+    code,
+    image,
+    swatch: color ? color.hex : "#00000000",
+    app: clip.app || "Unknown",
+    type: (pinned ? "Pinned " : "") + (kind === "media" ? (clip.kind === "image" ? "Image" : "Files") : categoryNames[kind].replace(/s$/, "")),
+    copied: copiedLabel(date),
+    details
+  }
+}
+
+// The type menu: the types, then the pinboards.
+function pickerItems(saved) {
+  return [
+    { text: "All Types", value: "all" },
+    { text: "Pinned", value: "pinned" },
+    ...Object.entries(categoryNames).map(([value, text]) => ({ text, value })),
+    ...saved.boards.map(board => ({ text: `Pinboard: ${board.name}`, value: `board:${board.name}` }))
+  ]
+}
+
+// Fills the list with a view, and selects the clip with the key `options.select`, or the first.
+// The type menu's items are set only with `options.picker`, since setting them reselects it.
+function listUpdate(view, saved, options = {}) {
+  const clips = clipsInView(view, saved)
+  const rows = clips.map(row)
+  const selected = options.select && clips.find(clip => clipKey(clip) === options.select)
+  const update = {
+    variables: { view },
+    update: { relayout: Boolean(options.picker), ids: {
+      clipList: {
+        data: {
+          src: rows,
+          filter: { type: "basic", args: "match", match: "{value:searchField.text}", matchmode: "wordmatchanyorder" }
+        }
+      }
+    } },
+    functions: { ids: { clipList: ["filterdata"] } }
+  }
+  if (options.picker) update.update.ids.typePicker = { items: pickerItems(saved), selected: view }
+  if (selected) update.update.ids.clipList.select = selected.uid
+  else update.functions.ids.clipList.push("selectfirst")
+  return update
+}
+
+// MARK: - Pasteboard
+
+// Puts a clip back on the pasteboard. Images go back as the exact bytes Alfred stored,
+// so Alfred sees the same item again instead of recording a near-duplicate.
+function writeToPasteboard(clip) {
+  const pasteboard = $.NSPasteboard.generalPasteboard
+  pasteboard.clearContents
+  switch (clip.kind) {
+    case "text":
+      pasteboard.setStringForType($(clip.item), $.NSPasteboardTypeString)
+      break
+    case "image": {
+      const data = $.NSData.dataWithContentsOfFile(dataPath(clip))
+      if (data.isNil()) return false
+      pasteboard.setDataForType(data, clip.dataHash.toLowerCase().endsWith(".png") ? $.NSPasteboardTypePNG : $.NSPasteboardTypeTIFF)
+      break
+    }
+    case "files":
+      pasteboard.writeObjects($(listedFiles(clip).map(path => $.NSURL.fileURLWithPath(path))))
+      break
+  }
+  return true
+}

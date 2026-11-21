@@ -1,0 +1,13 @@
+#!/usr/bin/osascript -l JavaScript
+
+eval?.($.NSString.stringWithContentsOfFileEncodingError("./scripts/common", $.NSUTF8StringEncoding, undefined).js)
+
+// Puts the selected clip on the clipboard and closes the window. Arguments: "paste" or "copy", the clip's uid
+// and the view. The workflow presses ⌘V after the window closes when the "paste" variable is 1.
+function run(argv) {
+  const [mode, uid, view] = argv
+  const clip = uid && findClip(uid, view, loadSaved())
+  if (!clip || !writeToPasteboard(clip)) return JSON.stringify({ sound: { src: "Funk" } })
+  notePasted(clip)
+  return JSON.stringify({ finish: { variables: { paste: mode === "paste" ? "1" : "0" } } })
+}

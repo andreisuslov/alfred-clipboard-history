@@ -1,0 +1,16 @@
+{
+  "constraints": { "region": "bottom" },
+  "type": "view",
+  "layout": "stack",
+  "padding": 8,
+  "background": { "light": "#0000000a", "dark": "#ffffff0a" },
+  "components": [
+    {
+      "constraints": { "position": "right", "insets": { "right": 8 } },
+      "type": "label",
+      "text": "Paste ↩    Copy ⌘↩    Pin ⌘⇧P    Actions ⌘K",
+      "colour": "secondaryLabelColor",
+      "font": { "size": "small" }
+    }
+  ]
+}

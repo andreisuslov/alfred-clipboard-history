@@ -21,11 +21,77 @@
 				<false/>
 			</dict>
 		</array>
+		<key>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D03</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D04</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D04</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D05</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D05</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D07</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>sourceoutputuid</key>
+				<string>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D06</string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>7A4E1B2C-3D5F-4A6B-8C9D-0E1F2A3B4C5D</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D03</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>sourceoutputuid</key>
+				<string>7A4E1B2C-3D5F-4A6B-8C9D-0E1F2A3B4C5E</string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>0741AE5D-9F62-4D8B-A13A-4EB28F506D9C</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
 		<key>E52F8C3B-7D40-4B69-8F18-2C906D3E4B7A</key>
 		<array>
 			<dict>
 				<key>destinationuid</key>
-				<string>0741AE5D-9F62-4D8B-A13A-4EB28F506D9C</string>
+				<string>7A4E1B2C-3D5F-4A6B-8C9D-0E1F2A3B4C5D</string>
 				<key>modifiers</key>
 				<integer>0</integer>
 				<key>modifiersubtext</key>
@@ -38,7 +104,7 @@
 		<array>
 			<dict>
 				<key>destinationuid</key>
-				<string>0741AE5D-9F62-4D8B-A13A-4EB28F506D9C</string>
+				<string>7A4E1B2C-3D5F-4A6B-8C9D-0E1F2A3B4C5D</string>
 				<key>modifiers</key>
 				<integer>0</integer>
 				<key>modifiersubtext</key>
@@ -157,12 +223,128 @@
 			<key>version</key>
 			<integer>2</integer>
 		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>conditions</key>
+				<array>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:window}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>alfredui</string>
+						<key>outputlabel</key>
+						<string>Alfred UI</string>
+						<key>uid</key>
+						<string>7A4E1B2C-3D5F-4A6B-8C9D-0E1F2A3B4C5E</string>
+					</dict>
+				</array>
+				<key>elselabel</key>
+				<string>App</string>
+				<key>hideelse</key>
+				<false/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.utility.conditional</string>
+			<key>uid</key>
+			<string>7A4E1B2C-3D5F-4A6B-8C9D-0E1F2A3B4C5D</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>launchmode</key>
+				<integer>0</integer>
+				<key>path</key>
+				<string>clipboard.alfredui</string>
+				<key>stackview</key>
+				<false/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.userinterface.alfredui</string>
+			<key>uid</key>
+			<string>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D03</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>unstackview</key>
+				<false/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.utility.hidealfred</string>
+			<key>uid</key>
+			<string>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D04</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>conditions</key>
+				<array>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:paste}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>1</string>
+						<key>outputlabel</key>
+						<string>Paste</string>
+						<key>uid</key>
+						<string>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D06</string>
+					</dict>
+				</array>
+				<key>elselabel</key>
+				<string>Copy</string>
+				<key>hideelse</key>
+				<true/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.utility.conditional</string>
+			<key>uid</key>
+			<string>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D05</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>count</key>
+				<integer>1</integer>
+				<key>keychar</key>
+				<string>v</string>
+				<key>keycode</key>
+				<integer>-1</integer>
+				<key>keymod</key>
+				<integer>1048576</integer>
+				<key>overridewithargument</key>
+				<false/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.output.dispatchkeycombo</string>
+			<key>uid</key>
+			<string>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D07</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
 	</array>
 	<key>readme</key>
 	<string>A Raycast-style window for Alfred's clipboard history: the list on the left, a preview and an Information panel on the right. Alfred keeps recording the clipboard; this only reads its history.
 
 - ⌃⌘V opens and closes it (the keyword clipboard and Home open it too)
 - Configure Workflow… at the top of the workflow in Alfred Preferences sets another hotkey, or a bar of cards along the bottom of the screen like Paste's
+- With Alfred 6, Configure Workflow… can switch the window to Alfred UI, which Alfred draws itself, with fewer features (no dragging, multi-select, day headings or bar). The app stays the default until Alfred UI can do these: https://www.alfredforum.com/topic/24231-please-help-me-with-the-new-alfredui/
 - Type to filter; the menu at the top right picks Text, Links, Code, Media or Colors
 - ↑↓ move, ↩ or double-click pastes into the app you were in, ⌘↩ copies, Esc closes
 - ⌘-click or ⇧-click selects several to paste, copy or drag at once; texts paste as one, a line each
@@ -175,9 +357,9 @@ The app (ClipHistory.app, built from source/ClipboardHistory.swift) starts at lo
 		<key>0741AE5D-9F62-4D8B-A13A-4EB28F506D9C</key>
 		<dict>
 			<key>xpos</key>
-			<integer>260</integer>
+			<integer>400</integer>
 			<key>ypos</key>
-			<integer>150</integer>
+			<integer>230</integer>
 		</dict>
 		<key>1852BF6E-A073-4E9C-B24B-5FC3906E7EAD</key>
 		<dict>
@@ -192,6 +374,41 @@ The app (ClipHistory.app, built from source/ClipboardHistory.swift) starts at lo
 			<integer>260</integer>
 			<key>ypos</key>
 			<integer>390</integer>
+		</dict>
+		<key>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D03</key>
+		<dict>
+			<key>xpos</key>
+			<integer>400</integer>
+			<key>ypos</key>
+			<integer>60</integer>
+		</dict>
+		<key>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D04</key>
+		<dict>
+			<key>xpos</key>
+			<integer>580</integer>
+			<key>ypos</key>
+			<integer>90</integer>
+		</dict>
+		<key>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D05</key>
+		<dict>
+			<key>xpos</key>
+			<integer>680</integer>
+			<key>ypos</key>
+			<integer>70</integer>
+		</dict>
+		<key>5B0C2D1E-6A3F-4C8B-9E7D-1F2A3B4C5D07</key>
+		<dict>
+			<key>xpos</key>
+			<integer>860</integer>
+			<key>ypos</key>
+			<integer>60</integer>
+		</dict>
+		<key>7A4E1B2C-3D5F-4A6B-8C9D-0E1F2A3B4C5D</key>
+		<dict>
+			<key>xpos</key>
+			<integer>230</integer>
+			<key>ypos</key>
+			<integer>185</integer>
 		</dict>
 		<key>E52F8C3B-7D40-4B69-8F18-2C906D3E4B7A</key>
 		<dict>
@@ -235,6 +452,32 @@ The app (ClipHistory.app, built from source/ClipboardHistory.swift) starts at lo
 			<key>config</key>
 			<dict>
 				<key>default</key>
+				<string>app</string>
+				<key>pairs</key>
+				<array>
+					<array>
+						<string>Its own app (all features)</string>
+						<string>app</string>
+					</array>
+					<array>
+						<string>Alfred UI (Alfred 6, fewer features)</string>
+						<string>alfredui</string>
+					</array>
+				</array>
+			</dict>
+			<key>description</key>
+			<string>Its own app is a small app that comes with the workflow and does everything. Alfred UI draws the window inside Alfred 6 instead, without dragging, selecting several items, headings for each day or the bar along the bottom. The hotkey and the keyword open whichever you pick.</string>
+			<key>label</key>
+			<string>Window</string>
+			<key>type</key>
+			<string>popupbutton</string>
+			<key>variable</key>
+			<string>window</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
 				<string>window</string>
 				<key>pairs</key>
 				<array>
@@ -256,6 +499,36 @@ The app (ClipHistory.app, built from source/ClipboardHistory.swift) starts at lo
 			<string>popupbutton</string>
 			<key>variable</key>
 			<string>layout</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string>newest</string>
+				<key>pairs</key>
+				<array>
+					<array>
+						<string>Newest installed</string>
+						<string>newest</string>
+					</array>
+					<array>
+						<string>Alfred 6</string>
+						<string>6</string>
+					</array>
+					<array>
+						<string>Alfred 5</string>
+						<string>5</string>
+					</array>
+				</array>
+			</dict>
+			<key>description</key>
+			<string>The Alfred that presses ⌘V when you paste, for a Mac with more than one installed. Pick an older one to keep using it; when the one you pick isn't installed, the newest is used.</string>
+			<key>label</key>
+			<string>Alfred</string>
+			<key>type</key>
+			<string>popupbutton</string>
+			<key>variable</key>
+			<string>alfred</string>
 		</dict>
 	</array>
 	<key>variablesdontexport</key>

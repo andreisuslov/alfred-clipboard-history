@@ -12,7 +12,9 @@
 // the key press itself (it registers its hotkey, ⌃⌘V unless set in Configure Workflow, see
 // handleHotKey) or is opened through LaunchServices (the workflow's keyword runs `open`).
 // Closing hands focus back to the app you were in.
-// The app has no Accessibility permission, so to paste it asks Alfred to press ⌘V (askAlfredToPaste).
+// The app has no Accessibility permission, so to paste it asks Alfred to press ⌘V (runAlfredTrigger).
+// With Configure Workflow's Window set to Alfred UI, the hotkey opens the Alfred UI window (clipboard.alfredui)
+// instead of this one; the app keeps watching the clipboard for it (see Recent).
 //
 // Build: source/build.sh (add --package for a .alfredworkflow)
 import AppKit
@@ -422,6 +424,106 @@ func loadClips(newerThan: Double = -.infinity) -> [Clip] {
         }
         return clips
     } ?? []
+}
+
+// MARK: - Recent copies
+
+/// Alfred 6 doesn't write what's copied to its database while it runs, so the history alone is stale: new
+/// copies are missing and a clip copied again keeps its old date. recent.json, in the folder with the pins,
+/// keeps the text copied while the app runs and the clips pasted from the window, newest first, each dated
+/// when it was last used. The Alfred UI window (clipboard.alfredui) reads and adds to the same file.
+struct Recent: Codable {
+    struct Entry: Codable {
+        var kind: Clip.Kind
+        var item: String
+        var date: Date
+        var app: String
+        var appPath: String
+        var dataHash: String
+        var folder: String
+
+        var key: String { kind == .text ? "text:" + item : "\(kind.rawValue):\(dataHash)" }  // as Clip.key
+        var clip: Clip {
+            Clip(kind: kind, item: item, date: date, app: app, appPath: appPath, dataHash: dataHash,
+                 folder: URL(fileURLWithPath: folder))
+        }
+    }
+
+    /// What says it changed: how many there are and when the newest was used.
+    struct Stamp: Equatable {
+        var count = 0
+        var newest = Date.distantPast
+    }
+
+    var changeCount = -1  // the pasteboard's, when it was last looked at
+    var clips: [Entry] = []
+
+    static let file = savedDir.appendingPathComponent("recent.json")
+
+    static func load() -> Recent {
+        (try? Data(contentsOf: file)).flatMap { try? JSONDecoder().decode(Recent.self, from: $0) } ?? Recent()
+    }
+
+    func save() {
+        try? FileManager.default.createDirectory(at: savedDir, withIntermediateDirectories: true)
+        try? JSONEncoder().encode(self).write(to: Recent.file, options: .atomic)
+    }
+
+    var stamp: Stamp { Stamp(count: clips.count, newest: clips.first?.date ?? .distantPast) }
+
+    mutating func add(_ clip: Clip) {
+        clips.removeAll { $0.key == clip.key }
+        clips.insert(Entry(kind: clip.kind, item: clip.item, date: Date(), app: clip.app, appPath: clip.appPath,
+                           dataHash: clip.dataHash, folder: clip.folder.path), at: 0)
+        clips = Array(clips.prefix(200))
+    }
+
+    /// Alfred's history with these in it, newest first: one Alfred has takes the later of the two dates.
+    func merged(into history: [Clip]) -> [Clip] {
+        guard !clips.isEmpty else { return history }
+        var recent = Dictionary(clips.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+        var merged = history.map { clip -> Clip in
+            guard let used = recent.removeValue(forKey: clip.key), used.date > clip.date else { return clip }
+            return Clip(kind: clip.kind, item: clip.item, date: used.date, app: used.app.isEmpty ? clip.app : used.app,
+                        appPath: used.appPath.isEmpty ? clip.appPath : used.appPath, dataHash: clip.dataHash,
+                        folder: clip.folder)
+        }
+        merged += recent.values.map(\.clip)
+        return merged.sorted { $0.date > $1.date }
+    }
+}
+
+/// Password managers mark what they copy so that clipboard histories leave it out (nspasteboard.org).
+let privateTypes: [NSPasteboard.PasteboardType] = ["org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType",
+                                                   "com.agilebits.onepassword"].map { .init($0) }
+var seenChangeCount = -1
+
+/// Adds the text on the clipboard, with the app it was copied in, when it has changed since the last look.
+/// Images and files are left to Alfred: there's no copy of them to show until Alfred saves one.
+func noteClipboard() {
+    let pasteboard = NSPasteboard.general
+    guard pasteboard.changeCount != seenChangeCount else { return }
+    seenChangeCount = pasteboard.changeCount
+    var recent = Recent.load()
+    guard recent.changeCount != pasteboard.changeCount else { return }
+    recent.changeCount = pasteboard.changeCount
+    if !(pasteboard.types ?? []).contains(where: privateTypes.contains),
+       pasteboard.availableType(from: [.fileURL, .tiff, .png, .string]) == .string,
+       let text = pasteboard.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        let app = NSWorkspace.shared.frontmostApplication.flatMap { $0.processIdentifier == getpid() ? nil : $0 }
+        recent.add(Clip(kind: .text, item: text, date: Date(), app: app?.localizedName ?? "",
+                        appPath: app?.bundleURL?.path ?? "", dataHash: ""))
+    }
+    recent.save()
+}
+
+/// Records clips pasted or copied from the window, once they're on the pasteboard; the first ends up newest.
+func notePasted(_ chosen: [Clip]) {
+    var recent = Recent.load()
+    for clip in chosen.reversed() { recent.add(clip) }
+    recent.changeCount = NSPasteboard.general.changeCount
+    seenChangeCount = recent.changeCount
+    recent.save()
 }
 
 /// Drops image links whose original Alfred has deleted (a link count of 1 means ours is the last).
@@ -990,13 +1092,32 @@ func roundedMask(radius: CGFloat) -> NSImage {
     return image
 }
 
-/// Has Alfred run the workflow's "paste" trigger, which presses ⌘V with Alfred's Accessibility
-/// permission. Opened without activating Alfred, so the app you were in stays in front and gets it.
-func askAlfredToPaste() {
-    guard let url = URL(string: "alfred://runtrigger/com.andreisuslov.alfred-clipboard-history/paste/") else { return }
+/// The Alfred to ask: the version chosen in Configure Workflow when it's installed, otherwise the newest.
+/// Alfred 5 and 6 share a bundle identifier and both open alfred:// links, so macOS on its own may pick
+/// either. Copies on a read-only volume, like Alfred's mounted disk image, don't count.
+func alfredApp() -> URL? {
+    let installed = NSWorkspace.shared.urlsForApplications(withBundleIdentifier: "com.runningwithcrayons.Alfred")
+        .filter { (try? $0.resourceValues(forKeys: [.volumeIsReadOnlyKey]))?.volumeIsReadOnly != true }
+        .compactMap { url in
+            (Bundle(url: url)?.infoDictionary?["CFBundleShortVersionString"] as? String).map { (url: url, version: $0) }
+        }
+        .sorted { $0.version.compare($1.version, options: .numeric) == .orderedDescending }
+    let chosen = setting("alfred")
+    return (installed.first { $0.version.split(separator: ".").first.map(String.init) == chosen } ?? installed.first)?.url
+}
+
+/// Has Alfred run one of the workflow's external triggers: "paste" presses ⌘V with Alfred's Accessibility
+/// permission, "show" opens the window Configure Workflow picks. Opened without activating Alfred, so the
+/// app you were in stays in front and gets the ⌘V.
+func runAlfredTrigger(_ trigger: String) {
+    guard let url = URL(string: "alfred://runtrigger/com.andreisuslov.alfred-clipboard-history/\(trigger)/") else { return }
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = false
-    NSWorkspace.shared.open(url, configuration: configuration)
+    if let alfred = alfredApp() {
+        NSWorkspace.shared.open([url], withApplicationAt: alfred, configuration: configuration)
+    } else {
+        NSWorkspace.shared.open(url, configuration: configuration)
+    }
 }
 
 /// Presses ⌘V in whatever app is in front.
@@ -1039,12 +1160,14 @@ final class Controller: NSObject, NSTextFieldDelegate, NSTableViewDataSource, NS
     let cards = CardStrip()
     let emptyHint = label("", size: 13, color: Theme.secondary)
     var footerView: NSView?
-    var clips: [Clip] = []
+    var history: [Clip] = []  // Alfred's, newest first
+    var clips: [Clip] = []  // the history with the recent copies in it (see Recent)
     var saved = Saved.load()
     var filter = Filter.type(0)
     var asking: ((String) -> Void)?  // while the search field takes a pinboard's name, what to do with it
     var numbered: [Int] = []  // the rows ⌘1 to ⌘9 paste: the items wholly in view, in order
     var loadedStamp = HistoryStamp()
+    var loadedRecent = Recent.Stamp()
     var loading = false
     var selectingFromCode = false
     var rows: [Row] = []
@@ -1364,17 +1487,18 @@ final class Controller: NSObject, NSTextFieldDelegate, NSTableViewDataSource, NS
     func refreshIfChanged() {
         guard !loading else { return }
         let stamp = historyStamp()
-        guard stamp != loadedStamp else { return }
+        let recent = Recent.load()
+        guard stamp != loadedStamp || recent.stamp != loadedRecent else { return }
+        if stamp == loadedStamp { return merge(recent) }
         // Usually Alfred has only added a copy or two: load just those, right away (about a millisecond).
-        if !clips.isEmpty, stamp.newest > loadedStamp.newest {
+        if !history.isEmpty, stamp.newest > loadedStamp.newest {
             let added = loadClips(newerThan: loadedStamp.newest)
             // Copying something again moves Alfred's item to the top, so its older entry goes.
-            let kept = clips.filter { old in !added.contains { $0.isSameItem(as: old) } }
+            let kept = history.filter { old in !added.contains { $0.isSameItem(as: old) } }
             if kept.count + added.count == stamp.count {
-                clips = added + kept
+                history = added + kept
                 loadedStamp = stamp
-                reload()
-                return
+                return merge(recent)
             }
         }
         // Anything else (the first load, Alfred deleting items) reloads everything in the background.
@@ -1383,12 +1507,18 @@ final class Controller: NSObject, NSTextFieldDelegate, NSTableViewDataSource, NS
             let fresh = loadClips()
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.clips = fresh
+                self.history = fresh
                 self.loadedStamp = stamp
                 self.loading = false
-                self.reload()
+                self.merge(recent)
             }
         }
+    }
+
+    func merge(_ recent: Recent) {
+        clips = recent.merged(into: history)
+        loadedRecent = recent.stamp
+        reload()
     }
 
     func windowDidResignKey(_ notification: Notification) {
@@ -1427,9 +1557,10 @@ final class Controller: NSObject, NSTextFieldDelegate, NSTableViewDataSource, NS
         let chosen = selectedClips
         guard !chosen.isEmpty else { return NSSound.beep() }
         Clip.write(chosen, to: .general)
+        notePasted(chosen)
         hide()
         guard paste, let target else { return }
-        whenFrontmost(target, then: askAlfredToPaste)
+        whenFrontmost(target) { runAlfredTrigger("paste") }
     }
 
     /// ⌘V has to reach the app you were in, so wait until it is back in front (a few milliseconds),
@@ -2086,6 +2217,10 @@ func setting(_ variable: String) -> String {
     return NSDictionary(contentsOf: prefs)?[variable] as? String ?? ""
 }
 
+/// Whether Configure Workflow's Window setting picks the Alfred UI window (clipboard.alfredui) over the app's own.
+/// The app then only keeps the hotkey, which has Alfred open that window.
+func usesAlfredUI() -> Bool { setting("window") == "alfredui" }
+
 /// Whether the workflow is turned off in Alfred, which saves that as `disabled` in the workflow's info.plist.
 func workflowDisabled() -> Bool {
     let info = appURL.deletingLastPathComponent().appendingPathComponent("info.plist")
@@ -2177,11 +2312,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = editMenu()
         installLoginAgent()
         pruneImageLinks()
-        hotKeyAction = { [weak self] in self?.controller?.toggle() }
+        hotKeyAction = { [weak self] in usesAlfredUI() ? runAlfredTrigger("show") : self?.controller?.toggle() }
         handleHotKey()
         updateSettings()
         // What's saved in Configure Workflow applies within a couple of seconds, without a restart.
         Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.updateSettings() }
+        // Checking the pasteboard's change count is cheap, so copies replaced quickly are still caught.
+        noteClipboard()
+        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in noteClipboard() }
         // At login (the LaunchAgent passes --login) it only starts, ready for the hotkey.
         if !CommandLine.arguments.contains("--login") { controller?.show() }
     }
@@ -2190,6 +2328,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The hotkey first: building the window can wait a second or two on the font server at login,
         // and a press in that time then opens it once it's built rather than going nowhere.
         updateHotKey()
+        if usesAlfredUI(), controller?.panel.isVisible == true { controller?.hide() }
         let layout = Layout(rawValue: setting("layout")) ?? .window
         if layout != controller?.layout {
             if controller?.panel.isVisible == true { controller?.hide() }

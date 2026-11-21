@@ -1,0 +1,42 @@
+{
+  "constraints": { "region": "top" },
+  "type": "view",
+  "layout": "border",
+  "padding": 12,
+  "spacing": 12,
+  "components": [
+    {
+      "constraints": { "region": "centre" },
+      "id": "searchField",
+      "type": "textfield",
+      "placeholder": "Type to filter entries…",
+      "placeholdercolour": "tertiaryLabelColor",
+      "bordered": false,
+      "background": null,
+      "focus": true,
+      "focusring": false,
+      "font": { "size": 18 },
+      "events": [
+        {
+          "triggers": "changed",
+          "action": { "type": "json", "src": { "functions": { "ids": { "clipList": ["filterdata", "selectfirst"] } } } }
+        },
+        {
+          "triggers": "actioned",
+          "action": { "type": "script", "src": "scripts/use", "args": ["paste", "{value:clipList.selected.uid}", "{var:view}"] }
+        }
+      ]
+    },
+    {
+      "constraints": { "region": "right", "size": { "width": 170 } },
+      "id": "typePicker",
+      "type": "picker",
+      "tooltip": "Show one type or pinboard",
+      "items": [{ "text": "All Types", "value": "all" }],
+      "events": [{
+        "triggers": "actioned",
+        "action": { "type": "script", "src": "scripts/load", "args": "{value:self.selected.value}" }
+      }]
+    }
+  ]
+}

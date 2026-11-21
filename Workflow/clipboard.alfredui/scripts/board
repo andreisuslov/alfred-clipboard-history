@@ -1,0 +1,54 @@
+#!/usr/bin/osascript -l JavaScript
+
+eval?.($.NSString.stringWithContentsOfFileEncodingError("./scripts/common", $.NSUTF8StringEncoding, undefined).js)
+
+// Changes pinboards. Arguments, by the first:
+//   add <name> <uid> <view>     adds a clip to a pinboard, making it if it's new
+//   remove <uid> <view>         takes a clip off the pinboard in view
+//   rename <name> <new name>    renames a pinboard
+//   delete <name>               deletes a pinboard
+function run(argv) {
+  const [command, ...args] = argv
+  const saved = loadSaved()
+  const boardNamed = name => saved.boards.find(board => board.name === name)
+  let view = "all", select
+
+  switch (command) {
+    case "add": {
+      const [rawName, uid, currentView] = args
+      const name = rawName.trim()
+      const clip = uid && findClip(uid, currentView, saved)
+      if (!name || !clip) return JSON.stringify({ sound: { src: "Funk" } })
+      let board = boardNamed(name)
+      if (!board) saved.boards.push(board = { name, items: [] })
+      select = clipKey(clip)
+      if (!board.items.some(item => clipKey(item) === select)) board.items.unshift(keep(clip))
+      view = currentView
+      break
+    }
+    case "remove": {
+      const [uid, currentView] = args
+      const board = boardNamed(currentView.replace(/^board:/, ""))
+      if (!board) return JSON.stringify({ sound: { src: "Funk" } })
+      board.items = board.items.filter(item => `b${hash(clipKey(item))}` !== uid)
+      view = currentView
+      break
+    }
+    case "rename": {
+      const [name, rawNewName] = args
+      const newName = rawNewName.trim()
+      const board = boardNamed(name)
+      if (!board || !newName || (newName !== name && boardNamed(newName))) return JSON.stringify({ sound: { src: "Funk" } })
+      board.name = newName
+      view = `board:${newName}`
+      break
+    }
+    case "delete": {
+      saved.boards = saved.boards.filter(board => board.name !== args[0])
+      break
+    }
+  }
+
+  saveSaved(saved)
+  return JSON.stringify(listUpdate(view, saved, { select, picker: true }))
+}

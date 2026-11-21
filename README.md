@@ -31,16 +31,41 @@ It follows light and dark mode. Colors show as swatches, with their Hex and RGB 
 
 ![Clipboard History showing colors in dark mode](images/clipboard-history-colors.png)
 
-Requires Alfred 5 with the Powerpack and Clipboard History turned on (turn on its Images and Files options to see those too), on macOS 13 or later.
+Requires Alfred 5 or 6 with the Powerpack and Clipboard History turned on (turn on its Images and Files options to see those too), on macOS 13 or later. With both installed, it uses the newest. To keep using Alfred 5, choose it from the Alfred menu in Configure Workflow….
 
 ## How it works
 
-The window is a small app that comes with the workflow (`ClipHistory.app`). It only reads Alfred's clipboard history, so Alfred keeps recording as usual. It registers the hotkey itself (Alfred's own hotkeys can't hand it the keyboard) and reads it from the workflow's `prefs.plist`, where Alfred saves Configure Workflow. It starts at login, so the hotkey works right away, by adding `~/Library/LaunchAgents/com.andreisuslov.alfred-clipboard-history.plist`. To paste, it asks Alfred to press <kbd>⌘</kbd><kbd>V</kbd>, so it needs no permissions of its own.
+The window is a small app that comes with the workflow (`ClipHistory.app`). It only reads Alfred's clipboard history, so Alfred keeps recording as usual. It registers the hotkey itself (Alfred's own hotkeys can't hand it the keyboard) and reads it from the workflow's `prefs.plist`, where Alfred saves Configure Workflow. It starts at login, so the hotkey works right away, by adding `~/Library/LaunchAgents/com.andreisuslov.alfred-clipboard-history.plist`. With the Window setting on Alfred UI, the app still starts and keeps the hotkey, which then has Alfred open the Alfred UI window. To paste, it asks Alfred to press <kbd>⌘</kbd><kbd>V</kbd>, so it needs no permissions of its own. Alfred 5 and 6 answer the same `alfred://` links, so it sends the request to the Alfred chosen in Configure Workflow, or the newest installed.
 
 The app isn't notarized. If macOS won't open it after you install the workflow, go to System Settings → Privacy & Security and choose Open Anyway, or right-click the workflow in Alfred Preferences, choose Open in Finder, and run `xattr -dr com.apple.quarantine .` in Terminal from that folder.
 
+Alfred 6 doesn't save what you copy to its history database while it's running, so the app also keeps its own list of what you copy and paste, in `recent.json` in the Workflow Data folder, and lists those at the top. The Alfred UI window reads the same list and adds the text on the clipboard each time it opens.
+
 To remove it, delete the workflow in Alfred, quit Clipboard History in Activity Monitor, and delete the LaunchAgent file above and the Workflow Data folder with your pins and pinboards.
 
+## Alfred UI window
+
+With Alfred 6, the workflow can show its window with [Alfred UI](https://www.alfredapp.com/help/alfredui/) instead, Alfred's own toolkit for workflow windows. Alfred draws it, from the JSON in `Workflow/clipboard.alfredui`. To switch, choose Alfred UI from the Window menu in Configure Workflow…. The hotkey and the `clipboard` keyword then open it, and your pins and pinboards are the same in both.
+
+![Clipboard History in Alfred UI](images/clipboard-history-alfred-ui.png)
+
+It has the list, the preview and Information panel, the type menu, pins, pinboards and the actions. <kbd>↩</kbd> pastes, <kbd>⌘</kbd><kbd>↩</kbd> copies, <kbd>⌘</kbd><kbd>⇧</kbd><kbd>P</kbd> pins, <kbd>⌘</kbd><kbd>K</kbd> lists the actions, and <kbd>⌘</kbd><kbd>⌫</kbd> takes an item off the pinboard you're looking at.
+
+### Why the app is still the default
+
+Alfred UI can't do everything the app does yet, so the app stays the default until it can. In the Alfred UI window:
+
+* Rows can't be dragged out into other apps.
+* You can't select several items with <kbd>⌘</kbd>-click or <kbd>⇧</kbd>-click.
+* There are no "Today" and "Yesterday" headings. Each row shows when it was copied instead.
+* There's no bar along the bottom of the screen, since a window can't be placed at a screen edge.
+* <kbd>⌘</kbd><kbd>1</kbd>–<kbd>⌘</kbd><kbd>9</kbd> paste the first nine items in the list, not the nine in view, and the rows aren't numbered.
+* There's no right-click menu on rows.
+
+These are features Alfred UI would need to add. They're listed, with what each would take, in [this post on the Alfred Forum](https://www.alfredforum.com/topic/24231-please-help-me-with-the-new-alfredui/).
+
 ## Building
+
+The Alfred UI window is `Workflow/clipboard.alfredui`: `ui.json` and `components/` lay it out, and the JavaScript for Automation in `scripts/` reads the history and handles pasting, pins and pinboards. Alfred runs them, so they need no building.
 
 `Workflow/source/build.sh` compiles the app from `Workflow/source/ClipboardHistory.swift` with the Xcode Command Line Tools. With `--package` it also writes `dist/clipboard-history.alfredworkflow`.
