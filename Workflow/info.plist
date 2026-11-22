@@ -342,6 +342,7 @@
 	<key>readme</key>
 	<string>A Raycast-style window for Alfred's clipboard history: the list on the left, a preview and an Information panel on the right. Alfred keeps recording the clipboard; this only reads its history.
 
+- After installing, open it once with the keyword clipboard: that starts the app that holds the hotkey, which starts at login from then on. Until then ⌃⌘V does nothing
 - ⌃⌘V opens and closes it (the keyword clipboard and Home open it too)
 - Configure Workflow… at the top of the workflow in Alfred Preferences sets another hotkey, or a bar of cards along the bottom of the screen like Paste's
 - With Alfred 6, Configure Workflow… can switch the window to Alfred UI, which Alfred draws itself, with fewer features (no dragging, multi-select, day headings or bar). The app stays the default until Alfred UI can do these: https://www.alfredforum.com/topic/24231-please-help-me-with-the-new-alfredui/
@@ -440,7 +441,7 @@ The app (ClipHistory.app, built from source/ClipboardHistory.swift) starts at lo
 				<true/>
 			</dict>
 			<key>description</key>
-			<string>Opens and closes the window. Type it with symbols or words, like ⌥⌘V or opt+cmd+v: at least one of ⌃ ⌥ ⇧ ⌘ (ctrl, opt, shift, cmd) and a letter, number, Space or F1–F12. It changes within a couple of seconds of saving.</string>
+			<string>Opens and closes the window. Type it with symbols or words, like ⌥⌘V or opt+cmd+v: at least one of ⌃ ⌥ ⇧ ⌘ (ctrl, opt, shift, cmd) and a letter, number, Space or F1–F12. It changes within a couple of seconds of saving. After installing, type clipboard in Alfred once to start the app that holds the hotkey; until then the hotkey does nothing.</string>
 			<key>label</key>
 			<string>Hotkey</string>
 			<key>type</key>

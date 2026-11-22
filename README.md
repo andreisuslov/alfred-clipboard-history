@@ -6,7 +6,7 @@ A Raycast-style window for Alfred's clipboard history
 
 ## Usage
 
-Open the window with <kbd>⌃</kbd><kbd>⌘</kbd><kbd>V</kbd> or the `clipboard` keyword. Everything in Alfred's clipboard history is listed by day, with a preview and details of the selected item on the right. Type to filter, or pick Text, Links, Code, Media (images and files), Colors or one of your pinboards from the menu at the top right.
+After installing, open it once with the `clipboard` keyword in Alfred. That starts the app that holds the hotkey, so until then <kbd>⌃</kbd><kbd>⌘</kbd><kbd>V</kbd> does nothing and macOS just beeps. From then on it starts at login, and <kbd>⌃</kbd><kbd>⌘</kbd><kbd>V</kbd> or the keyword open the window. Everything in Alfred's clipboard history is listed by day, with a preview and details of the selected item on the right. Type to filter, or pick Text, Links, Code, Media (images and files), Colors or one of your pinboards from the menu at the top right.
 
 ![Clipboard History](images/clipboard-history.png)
 
@@ -35,7 +35,7 @@ Requires Alfred 5 or 6 with the Powerpack and Clipboard History turned on (turn 
 
 ## How it works
 
-The window is a small app that comes with the workflow (`ClipHistory.app`). It only reads Alfred's clipboard history, so Alfred keeps recording as usual. It registers the hotkey itself (Alfred's own hotkeys can't hand it the keyboard) and reads it from the workflow's `prefs.plist`, where Alfred saves Configure Workflow. It starts at login, so the hotkey works right away, by adding `~/Library/LaunchAgents/com.andreisuslov.alfred-clipboard-history.plist`. With the Window setting on Alfred UI, the app still starts and keeps the hotkey, which then has Alfred open the Alfred UI window. To paste, it asks Alfred to press <kbd>⌘</kbd><kbd>V</kbd>, so it needs no permissions of its own. Alfred 5 and 6 answer the same `alfred://` links, so it sends the request to the Alfred chosen in Configure Workflow, or the newest installed.
+The window is a small app that comes with the workflow (`ClipHistory.app`). It only reads Alfred's clipboard history, so Alfred keeps recording as usual. It registers the hotkey itself (Alfred's own hotkeys can't hand it the keyboard) and reads it from the workflow's `prefs.plist`, where Alfred saves Configure Workflow. Alfred removes the hotkeys of workflows you import and runs nothing when you install one, so the app first starts when you use the `clipboard` keyword. It then adds `~/Library/LaunchAgents/com.andreisuslov.alfred-clipboard-history.plist`, which starts it at login, so from then on the hotkey works right away. If the hotkey only beeps, the app isn't running: type `clipboard` in Alfred to start it. With the Window setting on Alfred UI, the app still starts and keeps the hotkey, which then has Alfred open the Alfred UI window. To paste, it asks Alfred to press <kbd>⌘</kbd><kbd>V</kbd>, so it needs no permissions of its own. Alfred 5 and 6 answer the same `alfred://` links, so it sends the request to the Alfred chosen in Configure Workflow, or the newest installed.
 
 The app isn't notarized. If macOS won't open it after you install the workflow, go to System Settings → Privacy & Security and choose Open Anyway, or right-click the workflow in Alfred Preferences, choose Open in Finder, and run `xattr -dr com.apple.quarantine .` in Terminal from that folder.
 
