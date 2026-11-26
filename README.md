@@ -39,7 +39,7 @@ The window is a small app that comes with the workflow (`ClipHistory.app`). It o
 
 The app isn't notarized. If macOS won't open it after you install the workflow, go to System Settings → Privacy & Security and choose Open Anyway, or right-click the workflow in Alfred Preferences, choose Open in Finder, and run `xattr -dr com.apple.quarantine .` in Terminal from that folder.
 
-Alfred 6 doesn't save what you copy to its history database while it's running, so the app also keeps its own list of what you copy and paste, in `recent.json` in the Workflow Data folder, and lists those at the top. The Alfred UI window reads the same list and adds the text on the clipboard each time it opens.
+Alfred 6 doesn't save what you copy to its history database while it's running, so the app also keeps its own list of what you copy and paste, in `recent.json` in the Workflow Data folder, and lists those at the top. The Alfred UI window reads the same list and adds the text on the clipboard each time it opens. Text longer than 100,000 characters is left out of it, since the whole list is read every time the window opens.
 
 To remove it, delete the workflow in Alfred, quit Clipboard History in Activity Monitor, and delete the LaunchAgent file above and the Workflow Data folder with your pins and pinboards.
 

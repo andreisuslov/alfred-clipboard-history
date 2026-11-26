@@ -460,8 +460,16 @@ struct Recent: Codable {
 
     static let file = savedDir.appendingPathComponent("recent.json")
 
+    /// Text clips longer than this are left out: one 21 MB terminal dump made every open take 2 s.
+    /// The Alfred UI window's scripts/common uses the same limit (maxRecentLength).
+    static let maxTextLength = 100_000
+
+    static func fits(kind: Clip.Kind, item: String) -> Bool { kind != .text || item.utf16.count <= maxTextLength }
+
     static func load() -> Recent {
-        (try? Data(contentsOf: file)).flatMap { try? JSONDecoder().decode(Recent.self, from: $0) } ?? Recent()
+        var recent = (try? Data(contentsOf: file)).flatMap { try? JSONDecoder().decode(Recent.self, from: $0) } ?? Recent()
+        recent.clips.removeAll { !fits(kind: $0.kind, item: $0.item) }
+        return recent
     }
 
     func save() {
@@ -472,6 +480,7 @@ struct Recent: Codable {
     var stamp: Stamp { Stamp(count: clips.count, newest: clips.first?.date ?? .distantPast) }
 
     mutating func add(_ clip: Clip) {
+        guard Recent.fits(kind: clip.kind, item: clip.item) else { return }
         clips.removeAll { $0.key == clip.key }
         clips.insert(Entry(kind: clip.kind, item: clip.item, date: Date(), app: clip.app, appPath: clip.appPath,
                            dataHash: clip.dataHash, folder: clip.folder.path), at: 0)

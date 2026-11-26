@@ -302,10 +302,17 @@ function keep(clip) {
 // pasted from the window and the text on the clipboard each time the window opens, newest first,
 // each dated when it was last used, and the pasteboard's changeCount when it was last looked at.
 // ClipHistory.app keeps the same file, adding text as it's copied while the app runs.
+// Text clips longer than this are left out of recent.json: one 21 MB terminal dump made every open take 2 s.
+const maxRecentLength = 100000
+
+function fitsRecent(clip) {
+  return clip.kind !== "text" || clip.item.length <= maxRecentLength
+}
+
 function loadRecent() {
   try {
     const recent = JSON.parse(readFile(recentFile))
-    return { changeCount: recent.changeCount, clips: recent.clips || [] }
+    return { changeCount: recent.changeCount, clips: (recent.clips || []).filter(fitsRecent) }
   } catch (error) {
     return { changeCount: -1, clips: [] }
   }
@@ -322,6 +329,7 @@ function now() {
 }
 
 function addRecent(recent, clip) {
+  if (!fitsRecent(clip)) return
   const key = clipKey(clip)
   recent.clips = [Object.assign({}, clip, { date: now() })].concat(recent.clips.filter(other => clipKey(other) !== key))
 }
