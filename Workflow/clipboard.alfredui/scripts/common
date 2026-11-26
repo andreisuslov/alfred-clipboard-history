@@ -415,6 +415,18 @@ function findClip(uid, view, saved) {
 
 // MARK: - Rows
 
+// Alfred UI's filters only match from the start of a word, so what a row is searched by also has the rest of each
+// word from every later character on (within its first 32): "5246357645675678" adds "246357645675678" … "78",
+// so typing 678 finds it, as the app's own window does.
+function withWordEnds(text) {
+  const ends = new Set()
+  for (const word of text.split(/\s+/)) {
+    const chars = Array.from(word).slice(0, 32)  // by code point: half an emoji's surrogate pair isn't valid JSON for Alfred
+    for (let i = 1; i < chars.length - 1; i++) ends.add(chars.slice(i).join(""))
+  }
+  return ends.size > 0 ? `${text} ${[...ends].join(" ")}` : text
+}
+
 // A dataview row: the cell's parts (as "id.property") and, without dots, what the preview shows.
 function row(clip) {
   const date = jsDate(clip)
@@ -452,7 +464,7 @@ function row(clip) {
   const pinned = Boolean(clip.pinned)
   return {
     uid: clip.uid,
-    match: `${clip.kind === "text" ? clip.item.slice(0, 1000) : title} ${clip.app}`,
+    match: withWordEnds(`${clip.kind === "text" ? clip.item.slice(0, 1000) : title} ${clip.app}`),
     "cellIcon.image.src": clip.appPath || "/System/Library/CoreServices/Finder.app",
     "cellIcon.hidden": Boolean(color),
     "cellSwatch.hidden": !color,
