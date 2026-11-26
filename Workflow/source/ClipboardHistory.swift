@@ -460,8 +460,16 @@ struct Recent: Codable {
 
     static let file = savedDir.appendingPathComponent("recent.json")
 
+    /// Text clips longer than this are left out: one 21 MB terminal dump made every open take 2 s.
+    /// The Alfred UI window's scripts/common uses the same limit (maxRecentLength).
+    static let maxTextLength = 100_000
+
+    static func fits(kind: Clip.Kind, item: String) -> Bool { kind != .text || item.utf16.count <= maxTextLength }
+
     static func load() -> Recent {
-        (try? Data(contentsOf: file)).flatMap { try? JSONDecoder().decode(Recent.self, from: $0) } ?? Recent()
+        var recent = (try? Data(contentsOf: file)).flatMap { try? JSONDecoder().decode(Recent.self, from: $0) } ?? Recent()
+        recent.clips.removeAll { !fits(kind: $0.kind, item: $0.item) }
+        return recent
     }
 
     func save() {
@@ -472,6 +480,7 @@ struct Recent: Codable {
     var stamp: Stamp { Stamp(count: clips.count, newest: clips.first?.date ?? .distantPast) }
 
     mutating func add(_ clip: Clip) {
+        guard Recent.fits(kind: clip.kind, item: clip.item) else { return }
         clips.removeAll { $0.key == clip.key }
         clips.insert(Entry(kind: clip.kind, item: clip.item, date: Date(), app: clip.app, appPath: clip.appPath,
                            dataHash: clip.dataHash, folder: clip.folder.path), at: 0)
@@ -2221,6 +2230,40 @@ func setting(_ variable: String) -> String {
 /// The app then only keeps the hotkey, which has Alfred open that window.
 func usesAlfredUI() -> Bool { setting("window") == "alfredui" }
 
+/// The Alfred UI window's list, kept ready. Its scripts/build (JXA) takes ~150 ms to build it, so while that window
+/// is in use the app has scripts/load --build save what opening it shows (panel.json) whenever something the list
+/// shows changes, and scripts/load opens from that copy while its stamp still matches.
+final class KeptList {
+    private var builtFrom: [Double] = []
+    private var building: Process?
+
+    /// The day and the modification times of what the list is built from.
+    private func inputs(_ scripts: URL) -> [Double] {
+        let files = [historyPath, Recent.file.path, savedDir.appendingPathComponent("saved.json").path,
+                     scripts.appendingPathComponent("common").path, scripts.appendingPathComponent("build").path]
+        return [Calendar.current.startOfDay(for: Date()).timeIntervalSince1970] + files.map { path in
+            ((try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        }
+    }
+
+    func update() {
+        guard building == nil, usesAlfredUI(), !workflowDisabled() else { return }
+        let scripts = appURL.deletingLastPathComponent().appendingPathComponent("clipboard.alfredui/scripts")
+        let now = inputs(scripts)
+        guard now != builtFrom else { return }
+        builtFrom = now
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.arguments = ["-f", scripts.appendingPathComponent("load").path, "--build"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        process.terminationHandler = { [weak self] _ in DispatchQueue.main.async { self?.building = nil } }
+        if (try? process.run()) != nil { building = process }
+    }
+}
+
+let keptList = KeptList()
+
 /// Whether the workflow is turned off in Alfred, which saves that as `disabled` in the workflow's info.plist.
 func workflowDisabled() -> Bool {
     let info = appURL.deletingLastPathComponent().appendingPathComponent("info.plist")
@@ -2312,7 +2355,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = editMenu()
         installLoginAgent()
         pruneImageLinks()
-        hotKeyAction = { [weak self] in usesAlfredUI() ? runAlfredTrigger("show") : self?.controller?.toggle() }
+        hotKeyAction = { [weak self] in
+            guard usesAlfredUI() else { self?.controller?.toggle(); return }
+            noteClipboard()  // a copy from the last half second, so the window's kept list counts as changed
+            runAlfredTrigger("show")
+        }
         handleHotKey()
         updateSettings()
         // What's saved in Configure Workflow applies within a couple of seconds, without a restart.
@@ -2320,6 +2367,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Checking the pasteboard's change count is cheap, so copies replaced quickly are still caught.
         noteClipboard()
         Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in noteClipboard() }
+        keptList.update()
+        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in keptList.update() }
         // At login (the LaunchAgent passes --login) it only starts, ready for the hotkey.
         if !CommandLine.arguments.contains("--login") { controller?.show() }
     }

@@ -1,0 +1,9 @@
+#!/usr/bin/osascript -l JavaScript
+
+eval?.($.NSString.stringWithContentsOfFileEncodingError("./scripts/common", $.NSUTF8StringEncoding, undefined).js)
+
+// Fills the list. Arguments: the view, and "picker" to also fill the type menu (when the window opens).
+function run(argv) {
+  const [view, picker] = argv
+  return JSON.stringify(listUpdate(view || "all", loadSaved(), { picker: picker === "picker" }))
+}

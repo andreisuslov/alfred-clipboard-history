@@ -39,13 +39,13 @@ The window is a small app that comes with the workflow (`ClipHistory.app`). It o
 
 The app isn't notarized. If macOS won't open it after you install the workflow, go to System Settings → Privacy & Security and choose Open Anyway, or right-click the workflow in Alfred Preferences, choose Open in Finder, and run `xattr -dr com.apple.quarantine .` in Terminal from that folder.
 
-Alfred 6 doesn't save what you copy to its history database while it's running, so the app also keeps its own list of what you copy and paste, in `recent.json` in the Workflow Data folder, and lists those at the top. The Alfred UI window reads the same list and adds the text on the clipboard each time it opens.
+Alfred 6 doesn't save what you copy to its history database while it's running, so the app also keeps its own list of what you copy and paste, in `recent.json` in the Workflow Data folder, and lists those at the top. The Alfred UI window reads the same list and adds the text on the clipboard each time it opens. Text longer than 100,000 characters is left out of it, since the whole list is read every time the window opens.
 
 To remove it, delete the workflow in Alfred, quit Clipboard History in Activity Monitor, and delete the LaunchAgent file above and the Workflow Data folder with your pins and pinboards.
 
 ## Alfred UI window
 
-With Alfred 6, the workflow can show its window with [Alfred UI](https://www.alfredapp.com/help/alfredui/) instead, Alfred's own toolkit for workflow windows. Alfred draws it, from the JSON in `Workflow/clipboard.alfredui`. To switch, choose Alfred UI from the Window menu in Configure Workflow…. The hotkey and the `clipboard` keyword then open it, and your pins and pinboards are the same in both.
+With Alfred 6, the workflow can show its window with [Alfred UI](https://www.alfredapp.com/help/alfredui/) instead, Alfred's own toolkit for workflow windows. Alfred draws it, from the JSON in `Workflow/clipboard.alfredui`. To switch, choose Alfred UI from the Window menu in Configure Workflow…. The hotkey and the `clipboard` keyword then open it, and your pins and pinboards are the same in both. Building the list takes JXA about 150 ms, so while the Alfred UI window is in use the app keeps the list it opens with ready, in `panel.json` in the Workflow Data folder, and rebuilds it in the background whenever something changes; the window opens from it in about 20 ms.
 
 ![Clipboard History in Alfred UI](images/clipboard-history-alfred-ui.png)
 
