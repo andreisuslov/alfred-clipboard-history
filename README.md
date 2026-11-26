@@ -45,7 +45,7 @@ To remove it, delete the workflow in Alfred, quit Clipboard History in Activity 
 
 ## Alfred UI window
 
-With Alfred 6, the workflow can show its window with [Alfred UI](https://www.alfredapp.com/help/alfredui/) instead, Alfred's own toolkit for workflow windows. Alfred draws it, from the JSON in `Workflow/clipboard.alfredui`. To switch, choose Alfred UI from the Window menu in Configure Workflow…. The hotkey and the `clipboard` keyword then open it, and your pins and pinboards are the same in both.
+With Alfred 6, the workflow can show its window with [Alfred UI](https://www.alfredapp.com/help/alfredui/) instead, Alfred's own toolkit for workflow windows. Alfred draws it, from the JSON in `Workflow/clipboard.alfredui`. To switch, choose Alfred UI from the Window menu in Configure Workflow…. The hotkey and the `clipboard` keyword then open it, and your pins and pinboards are the same in both. Building the list takes JXA about 150 ms, so while the Alfred UI window is in use the app keeps the list it opens with ready, in `panel.json` in the Workflow Data folder, and rebuilds it in the background whenever something changes; the window opens from it in about 20 ms.
 
 ![Clipboard History in Alfred UI](images/clipboard-history-alfred-ui.png)
 

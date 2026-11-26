@@ -1,9 +1,40 @@
-#!/usr/bin/osascript -l JavaScript
+#!/bin/zsh -f
+# Fills the list. Arguments: the view, and "picker" to also fill the type menu (when the window opens).
+#
+# scripts/build (JXA) builds the list, which takes ~150 ms. While the Alfred UI window is in use, ClipHistory.app
+# runs this script with --build whenever something the list shows changes, keeping what opening the window shows
+# in panel.json, and the window opens from that copy while its stamp still matches: the day, the app (still
+# running, so still keeping it current) and the modification times of Alfred's history, recent.json, saved.json
+# and the scripts. Anything else builds the list afresh.
+cd "${0:A:h:h}" || exit 1
+zmodload zsh/datetime
+data=${alfred_workflow_data:-$HOME/Library/Application Support/Alfred/Workflow Data/com.andreisuslov.alfred-clipboard-history}
 
-eval?.($.NSString.stringWithContentsOfFileEncodingError("./scripts/common", $.NSUTF8StringEncoding, undefined).js)
-
-// Fills the list. Arguments: the view, and "picker" to also fill the type menu (when the window opens).
-function run(argv) {
-  const [view, picker] = argv
-  return JSON.stringify(listUpdate(view || "all", loadSaved(), { picker: picker === "picker" }))
+# The stamp for a copy kept current by the app with process id $1.
+stamp() {
+  local day
+  strftime -s day %F $EPOCHSECONDS
+  print -r -- $day $1 ${(f)"$(/usr/bin/stat -f %Fm "$HOME/Library/Application Support/Alfred/Databases/clipboard.alfdb" \
+    "$data/recent.json" "$data/saved.json" scripts/common scripts/build 2>/dev/null)"}
 }
+
+if [[ $1 == --build ]]; then
+  # Stamped before building: a change while it builds leaves the stamp behind, so that copy isn't used.
+  mkdir -p -- $data
+  s=$(stamp $PPID)
+  /usr/bin/osascript -l JavaScript scripts/build all picker > $data/panel.json.$$ &&
+    mv -f -- $data/panel.json.$$ $data/panel.json &&
+    print -r -- $s > $data/panel.stamp.$$ && mv -f -- $data/panel.stamp.$$ $data/panel.stamp
+  rm -f -- $data/panel.json.$$ $data/panel.stamp.$$
+  exit 0
+fi
+
+if [[ $1 == all && $2 == picker && -r $data/panel.stamp && -r $data/panel.json ]]; then
+  s=$(<$data/panel.stamp)
+  pid=${${=s}[2]}
+  if [[ $pid == <-> ]] && kill -0 $pid 2>/dev/null && [[ $s == "$(stamp $pid)" ]]; then
+    print -rn -- "$(<$data/panel.json)"
+    exit 0
+  fi
+fi
+exec /usr/bin/osascript -l JavaScript scripts/build "$@"
